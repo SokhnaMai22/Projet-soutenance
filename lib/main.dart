@@ -1,7 +1,7 @@
 // lib/main.dart
 
 import 'package:flutter/material.dart';
-import 'screens/catalogue_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() {
   runApp(const PharmaSanteApp());
@@ -14,7 +14,7 @@ class PharmaSanteApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'PharmaSanté Sénégal',
-      debugShowCheckedModeBanner: false, // Retire le petit bandeau "DEBUG"
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.teal,
@@ -23,7 +23,7 @@ class PharmaSanteApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
       ),
-      home: const CatalogueScreen(), // Notre premier écran
+      home: const LoginScreen(),
     );
   }
 }

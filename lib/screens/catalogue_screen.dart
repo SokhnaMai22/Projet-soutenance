@@ -2,8 +2,13 @@
 
 import 'package:flutter/material.dart';
 import '../models/medicament.dart';
+import '../models/panier.dart';
 import '../services/catalogue_service.dart';
 import '../widgets/medicament_card.dart';
+import 'ordonnance_screen.dart';
+import 'panier_screen.dart';
+import 'suivi_commande_screen.dart';
+import 'livreur_screen.dart'; // <-- 1. Import de l'Espace Livreur
 
 class CatalogueScreen extends StatefulWidget {
   const CatalogueScreen({super.key});
@@ -13,18 +18,23 @@ class CatalogueScreen extends StatefulWidget {
 }
 
 class _CatalogueScreenState extends State<CatalogueScreen> {
-  // Liste affichée (filtrée selon la recherche)
   List<Medicament> _medicamentsAffiches = [];
-  String _filtreActuel = 'TOUS'; // TOUS, LIBRE, ORDONNANCE
+  String _filtreActuel = 'TOUS';
   final TextEditingController _rechercheController = TextEditingController();
 
-  @override
+   @override
   void initState() {
     super.initState();
-    _medicamentsAffiches = CatalogueService.medicaments;
+    _chargerMedicaments();
   }
 
-  // Filtrer selon la recherche et le type
+  void _chargerMedicaments() async {
+    final liste = await CatalogueService.chargerDepuisApi();
+    setState(() {
+      _medicamentsAffiches = liste;
+    });
+  }
+
   void _appliquerFiltres(String texte) {
     List<Medicament> resultats = CatalogueService.rechercher(texte);
 
@@ -36,6 +46,36 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
 
     setState(() {
       _medicamentsAffiches = resultats;
+    });
+  }
+
+  void _ouvrirEcranOrdonnances() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const OrdonnanceScreen()),
+    );
+  }
+
+  void _ouvrirEcranSuivi() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SuiviCommandeScreen()),
+    );
+  }
+
+  void _ouvrirEcranLivreur() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LivreurScreen()),
+    );
+  }
+
+  void _ouvrirEcranPanier() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PanierScreen()),
+    ).then((_) {
+      setState(() {});
     });
   }
 
@@ -60,20 +100,59 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
         backgroundColor: Colors.teal.shade700,
         foregroundColor: Colors.white,
         actions: [
+          // 1. Bouton Accès Espace Livreur (Nouveau !)
           IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined),
-            tooltip: 'Panier',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Le panier sera branché à la prochaine étape !')),
-              );
-            },
+            icon: const Icon(Icons.badge_outlined),
+            tooltip: 'Mode Livreur',
+            onPressed: _ouvrirEcranLivreur,
+          ),
+          // 2. Bouton Suivi Livraison (Moto)
+          IconButton(
+            icon: const Icon(Icons.delivery_dining),
+            tooltip: 'Suivi de livraison',
+            onPressed: _ouvrirEcranSuivi,
+          ),
+          // 3. Bouton Ordonnances
+          IconButton(
+            icon: const Icon(Icons.description_outlined),
+            tooltip: 'Mes ordonnances',
+            onPressed: _ouvrirEcranOrdonnances,
+          ),
+          // 4. Bouton Panier avec badge
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.shopping_cart_outlined),
+                tooltip: 'Panier',
+                onPressed: _ouvrirEcranPanier,
+              ),
+              if (PanierService.nombreArticles > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${PanierService.nombreArticles}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
       body: Column(
         children: [
-          // 1. Barre de recherche
           Container(
             color: Colors.teal.shade700,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -93,8 +172,6 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
               ),
             ),
           ),
-
-          // 2. Filtres (Chips)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
@@ -107,58 +184,52 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
               ],
             ),
           ),
-
-          // 3. Bannière "Envoyer une Ordonnance"
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.teal.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.teal.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.camera_alt_outlined, color: Colors.teal.shade800, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Vous avez une ordonnance ?',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.teal.shade900,
+          InkWell(
+            onTap: _ouvrirEcranOrdonnances,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.teal.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.teal.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.camera_alt_outlined, color: Colors.teal.shade800, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Vous avez une ordonnance ?',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.teal.shade900,
+                          ),
                         ),
-                      ),
-                      const Text(
-                        'Photographiez-la pour validation par le pharmacien.',
-                        style: TextStyle(fontSize: 12, color: Colors.black87),
-                      ),
-                    ],
+                        const Text(
+                          'Photographiez-la pour validation par le pharmacien.',
+                          style: TextStyle(fontSize: 12, color: Colors.black87),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Écran ordonnance bientôt connecté !')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal.shade700,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ElevatedButton(
+                    onPressed: _ouvrirEcranOrdonnances,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    child: const Text('Envoyer'),
                   ),
-                  child: const Text('Envoyer'),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-
           const SizedBox(height: 8),
-
-          // 4. Liste des médicaments
           Expanded(
             child: _medicamentsAffiches.isEmpty
                 ? const Center(
@@ -185,7 +256,6 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     );
   }
 
-  // Widget des boutons filtres
   Widget _buildFiltreChip(String label, String valeur) {
     final estSelectionne = _filtreActuel == valeur;
     return ChoiceChip(
@@ -207,7 +277,6 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     );
   }
 
-  // Boîte de dialogue simple pour voir le détail
   void _afficherDetailsMedicament(BuildContext context, Medicament medicament) {
     showModalBottomSheet(
       context: context,
@@ -263,20 +332,34 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                     label: const Text('Ajouter au panier'),
                     onPressed: () {
                       Navigator.pop(context);
+
                       if (medicament.necessiteOrdonnance) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            backgroundColor: Colors.orange,
-                            content: Text(
-                              'Règle de gestion : Ce médicament nécessite une ordonnance validée !',
+                          SnackBar(
+                            backgroundColor: Colors.orange.shade800,
+                            content: const Text(
+                              'Règle de gestion : Veuillez d\'abord téléverser votre ordonnance !',
+                            ),
+                            action: SnackBarAction(
+                              label: 'Envoyer',
+                              textColor: Colors.white,
+                              onPressed: _ouvrirEcranOrdonnances,
                             ),
                           ),
                         );
                       } else {
+                        setState(() {
+                          PanierService.ajouter(medicament);
+                        });
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             backgroundColor: Colors.green,
                             content: Text('${medicament.nom} ajouté au panier !'),
+                            action: SnackBarAction(
+                              label: 'Voir Panier',
+                              textColor: Colors.white,
+                              onPressed: _ouvrirEcranPanier,
+                            ),
                           ),
                         );
                       }
