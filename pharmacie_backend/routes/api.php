@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\OrdonnanceController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\CommandeController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login',    [AuthController::class, 'login']);
@@ -27,4 +28,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/ordonnances/{ordonnance}/valider', [OrdonnanceController::class, 'valider']);
         Route::post('/ordonnances/{ordonnance}/rejeter', [OrdonnanceController::class, 'rejeter']);
     });
+    Route::middleware(['auth:sanctum', 'role:patient'])->group(function () {
+    Route::post('/commande/verifier', [CommandeController::class, 'verifier']);
+    Route::post('/commande', [CommandeController::class, 'store']);
+});
 });
