@@ -8,7 +8,7 @@ import '../widgets/medicament_card.dart';
 import 'ordonnance_screen.dart';
 import 'panier_screen.dart';
 import 'suivi_commande_screen.dart';
-import 'livreur_screen.dart'; // <-- 1. Import de l'Espace Livreur
+import 'livreur_screen.dart';
 
 class CatalogueScreen extends StatefulWidget {
   const CatalogueScreen({super.key});
@@ -22,7 +22,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
   String _filtreActuel = 'TOUS';
   final TextEditingController _rechercheController = TextEditingController();
 
-   @override
+  @override
   void initState() {
     super.initState();
     _chargerMedicaments();
@@ -100,25 +100,21 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
         backgroundColor: Colors.teal.shade700,
         foregroundColor: Colors.white,
         actions: [
-          // 1. Bouton Accès Espace Livreur (Nouveau !)
           IconButton(
             icon: const Icon(Icons.badge_outlined),
             tooltip: 'Mode Livreur',
             onPressed: _ouvrirEcranLivreur,
           ),
-          // 2. Bouton Suivi Livraison (Moto)
           IconButton(
             icon: const Icon(Icons.delivery_dining),
             tooltip: 'Suivi de livraison',
             onPressed: _ouvrirEcranSuivi,
           ),
-          // 3. Bouton Ordonnances
           IconButton(
             icon: const Icon(Icons.description_outlined),
             tooltip: 'Mes ordonnances',
             onPressed: _ouvrirEcranOrdonnances,
           ),
-          // 4. Bouton Panier avec badge
           Stack(
             alignment: Alignment.center,
             children: [
@@ -332,37 +328,24 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                     label: const Text('Ajouter au panier'),
                     onPressed: () {
                       Navigator.pop(context);
-
-                      if (medicament.necessiteOrdonnance) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.orange.shade800,
-                            content: const Text(
-                              'Règle de gestion : Veuillez d\'abord téléverser votre ordonnance !',
-                            ),
-                            action: SnackBarAction(
-                              label: 'Envoyer',
-                              textColor: Colors.white,
-                              onPressed: _ouvrirEcranOrdonnances,
-                            ),
+                      setState(() {
+                        PanierService.ajouter(medicament);
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: medicament.necessiteOrdonnance
+                              ? Colors.orange.shade800
+                              : Colors.green,
+                          content: Text(medicament.necessiteOrdonnance
+                              ? '${medicament.nom} ajouté. Une ordonnance validée sera exigée à la commande.'
+                              : '${medicament.nom} ajouté au panier !'),
+                          action: SnackBarAction(
+                            label: 'Voir Panier',
+                            textColor: Colors.white,
+                            onPressed: _ouvrirEcranPanier,
                           ),
-                        );
-                      } else {
-                        setState(() {
-                          PanierService.ajouter(medicament);
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.green,
-                            content: Text('${medicament.nom} ajouté au panier !'),
-                            action: SnackBarAction(
-                              label: 'Voir Panier',
-                              textColor: Colors.white,
-                              onPressed: _ouvrirEcranPanier,
-                            ),
-                          ),
-                        );
-                      }
+                        ),
+                      );
                     },
                   ),
                 ],
