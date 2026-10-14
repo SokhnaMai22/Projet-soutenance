@@ -2,12 +2,18 @@
 
 import 'package:flutter/material.dart';
 import '../models/panier.dart';
-import 'suivi_commande_screen.dart'; // <-- 1. Import du suivi de commande
+import '../services/auth_service.dart';
+import 'suivi_commande_screen.dart';
 
 class PaiementScreen extends StatefulWidget {
   final double montantTotal;
+  final String? adresseLivraison;
 
-  const PaiementScreen({super.key, required this.montantTotal});
+  const PaiementScreen({
+    super.key,
+    required this.montantTotal,
+    this.adresseLivraison,
+  });
 
   @override
   State<PaiementScreen> createState() => _PaiementScreenState();
@@ -16,8 +22,23 @@ class PaiementScreen extends StatefulWidget {
 class _PaiementScreenState extends State<PaiementScreen> {
   String _moyenPaiement = 'WAVE';
   final _telephoneController = TextEditingController(text: '77 123 45 67');
-  final _adresseController = TextEditingController(text: 'Dakar, Médina Rue 22 x 15');
+  late final TextEditingController _adresseController;
   bool _enCoursDeTraitement = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _adresseController = TextEditingController(
+      text: widget.adresseLivraison ?? 'Dakar, Médina Rue 22 x 15',
+    );
+  }
+
+  @override
+  void dispose() {
+    _telephoneController.dispose();
+    _adresseController.dispose();
+    super.dispose();
+  }
 
   void _validerPaiement() async {
     if (_telephoneController.text.isEmpty || _adresseController.text.isEmpty) {
@@ -34,13 +55,37 @@ class _PaiementScreenState extends State<PaiementScreen> {
       _enCoursDeTraitement = true;
     });
 
+    // Paiement Wave / Orange Money : simulé (aucune transaction réelle)
     await Future.delayed(const Duration(seconds: 2));
+
+    // La commande est enregistrée en base par le serveur,
+    // qui revérifie la règle « ordonnance validée ».
+    final List<Map<String, dynamic>> lignes =
+        PanierService.articles.map<Map<String, dynamic>>((a) {
+      return {
+        'medicament_id': int.tryParse(a.medicament.id) ?? 0,
+        'quantite': a.quantite,
+      };
+    }).toList();
+
+    final erreur =
+        await AuthService.creerCommande(_adresseController.text, lignes);
 
     if (!mounted) return;
 
     setState(() {
       _enCoursDeTraitement = false;
     });
+
+    if (erreur != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red,
+          content: Text(erreur),
+        ),
+      );
+      return;
+    }
 
     PanierService.vider();
 
@@ -68,11 +113,12 @@ class _PaiementScreenState extends State<PaiementScreen> {
             ),
             const SizedBox(height: 8),
             Text('Opérateur : $_moyenPaiement'),
-            Text('Réf. Transaction : $reference', style: const TextStyle(fontFamily: 'monospace')),
+            Text('Réf. Transaction : $reference',
+                style: const TextStyle(fontFamily: 'monospace')),
             Text('Numéro : ${_telephoneController.text}'),
             const Divider(height: 20),
             const Text(
-              'Votre commande a été transmise à la pharmacie pour préparation.',
+              'Votre commande a été enregistrée et transmise à la pharmacie pour préparation.',
               style: TextStyle(fontSize: 13, color: Colors.blueGrey),
             ),
           ],
@@ -128,17 +174,23 @@ class _PaiementScreenState extends State<PaiementScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total à payer :', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const Text('Total à payer :',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
                     Text(
                       '${widget.montantTotal.toInt()} FCFA',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.teal.shade800),
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 20),
-            const Text('1. Adresse de livraison à Dakar :', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const Text('1. Adresse de livraison à Dakar :',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             TextField(
               controller: _adresseController,
@@ -147,11 +199,13 @@ class _PaiementScreenState extends State<PaiementScreen> {
                 hintText: 'Ex: Fann Résidence, Dakar',
                 filled: true,
                 fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
             ),
             const SizedBox(height: 24),
-            const Text('2. Opérateur de paiement mobile :', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const Text('2. Opérateur de paiement mobile :',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             _buildOptionPaiement(
               id: 'WAVE',
@@ -169,7 +223,8 @@ class _PaiementScreenState extends State<PaiementScreen> {
               icone: Icons.phone_android,
             ),
             const SizedBox(height: 20),
-            const Text('3. Numéro de téléphone Mobile Money :', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const Text('3. Numéro de téléphone Mobile Money :',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             TextField(
               controller: _telephoneController,
@@ -179,7 +234,8 @@ class _PaiementScreenState extends State<PaiementScreen> {
                 prefixText: '+221 ',
                 filled: true,
                 fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
             ),
             const SizedBox(height: 30),
@@ -188,9 +244,12 @@ class _PaiementScreenState extends State<PaiementScreen> {
               height: 52,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _moyenPaiement == 'WAVE' ? const Color(0xFF1DC3F4) : const Color(0xFFFF7900),
+                  backgroundColor: _moyenPaiement == 'WAVE'
+                      ? const Color(0xFF1DC3F4)
+                      : const Color(0xFFFF7900),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: _enCoursDeTraitement ? null : _validerPaiement,
                 child: _enCoursDeTraitement
@@ -204,7 +263,8 @@ class _PaiementScreenState extends State<PaiementScreen> {
                       )
                     : Text(
                         'Payer ${widget.montantTotal.toInt()} FCFA avec $_moyenPaiement',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
               ),
             ),
@@ -230,13 +290,17 @@ class _PaiementScreenState extends State<PaiementScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: estSelectionne ? couleur : Colors.grey.shade300, width: estSelectionne ? 2 : 1),
+          border: Border.all(
+              color: estSelectionne ? couleur : Colors.grey.shade300,
+              width: estSelectionne ? 2 : 1),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: couleur.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                  color: couleur.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10)),
               child: Icon(icone, color: couleur, size: 28),
             ),
             const SizedBox(width: 12),
@@ -244,8 +308,13 @@ class _PaiementScreenState extends State<PaiementScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(nom, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: estSelectionne ? couleur : Colors.black87)),
-                  Text(sousTitre, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text(nom,
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: estSelectionne ? couleur : Colors.black87)),
+                  Text(sousTitre,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
             ),

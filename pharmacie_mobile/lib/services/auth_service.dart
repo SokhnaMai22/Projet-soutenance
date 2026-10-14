@@ -102,6 +102,40 @@ class AuthService {
         body: jsonEncode({'motif': motif}));
     return res.statusCode == 200;
   }
+    // Patient : vérifier la règle « ordonnance validée » avant le paiement.
+  // Retourne null si la commande est autorisée, sinon le message du serveur.
+  static Future<String?> verifierCommande(List<int> medicamentIds) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/commande/verifier'),
+        headers: headers,
+        body: jsonEncode({'medicament_ids': medicamentIds}),
+      );
+      if (res.statusCode == 200) return null;
+      final data = jsonDecode(res.body);
+      return data['message']?.toString() ?? 'Erreur ${res.statusCode}';
+    } catch (e) {
+      return 'Impossible de joindre le serveur';
+    }
+  }
+
+  // Patient : enregistrer la commande en base.
+  // Retourne null si la commande est créée, sinon un message d'erreur.
+  static Future<String?> creerCommande(
+      String adresse, List<Map<String, dynamic>> lignes) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/commande'),
+        headers: headers,
+        body: jsonEncode({'adresse_livraison': adresse, 'lignes': lignes}),
+      );
+      if (res.statusCode == 201) return null;
+      final data = jsonDecode(res.body);
+      return data['message']?.toString() ?? 'Erreur ${res.statusCode}';
+    } catch (e) {
+      return 'Impossible de joindre le serveur';
+    }
+  }
 
   static void deconnexion() {
     token = null;

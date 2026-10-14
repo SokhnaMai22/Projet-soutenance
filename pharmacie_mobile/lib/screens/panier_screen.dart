@@ -2,8 +2,10 @@
 
 import 'package:flutter/material.dart';
 import '../models/panier.dart';
+import '../services/auth_service.dart';
 import 'paiement_screen.dart';
-import 'choisir_adresse_screen.dart'; // NOUVEAU
+import 'choisir_adresse_screen.dart';
+import 'ordonnance_screen.dart';
 
 class PanierScreen extends StatefulWidget {
   const PanierScreen({super.key});
@@ -15,12 +17,11 @@ class PanierScreen extends StatefulWidget {
 class _PanierScreenState extends State<PanierScreen> {
   final double fraisLivraison = 1000.0; // 1 000 FCFA
 
-  // NOUVEAU : adresse de livraison choisie sur la carte
+  // Adresse de livraison choisie sur la carte
   String? _adresseLivraison;
   double? _latitude;
   double? _longitude;
 
-  // NOUVEAU : ouvre la carte et récupère le résultat
   Future<void> _choisirAdresse() async {
     final res = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -35,11 +36,65 @@ class _PanierScreenState extends State<PanierScreen> {
     }
   }
 
+  // Vérifie la règle « ordonnance validée » auprès du serveur,
+  // puis ouvre l'écran de paiement.
+  Future<void> _passerAuPaiement(double totalGeneral) async {
+    if (_adresseLivraison == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Choisissez d\'abord votre adresse de livraison'),
+        ),
+      );
+      return;
+    }
+
+    final ids = PanierService.articles
+        .map((a) => int.tryParse(a.medicament.id))
+        .whereType<int>()
+        .toList();
+
+    final erreur = await AuthService.verifierCommande(ids);
+    if (!mounted) return;
+
+    if (erreur != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.orange.shade800,
+          persist: false,
+          duration: const Duration(seconds: 6),
+          content: Text(erreur),
+          action: SnackBarAction(
+            label: 'Mes ordonnances',
+            textColor: Colors.white,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const OrdonnanceScreen()),
+              );
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PaiementScreen(
+          montantTotal: totalGeneral,
+          adresseLivraison: _adresseLivraison,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final articles = PanierService.articles;
     final double totalMedicaments = PanierService.montantTotal;
-    final double totalGeneral = totalMedicaments > 0 ? totalMedicaments + fraisLivraison : 0.0;
+    final double totalGeneral =
+        totalMedicaments > 0 ? totalMedicaments + fraisLivraison : 0.0;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -53,11 +108,15 @@ class _PanierScreenState extends State<PanierScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey.shade400),
+                  Icon(Icons.shopping_cart_outlined,
+                      size: 80, color: Colors.grey.shade400),
                   const SizedBox(height: 16),
                   const Text(
                     'Votre panier est vide',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey),
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
                   const Text(
@@ -86,7 +145,8 @@ class _PanierScreenState extends State<PanierScreen> {
                       final item = articles[index];
                       return Card(
                         margin: const EdgeInsets.only(bottom: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                         child: Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Row(
@@ -98,7 +158,8 @@ class _PanierScreenState extends State<PanierScreen> {
                                   color: Colors.teal.shade50,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Icon(Icons.medication, color: Colors.teal.shade700),
+                                child: Icon(Icons.medication,
+                                    color: Colors.teal.shade700),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -107,11 +168,14 @@ class _PanierScreenState extends State<PanierScreen> {
                                   children: [
                                     Text(
                                       item.medicament.nom,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15),
                                     ),
                                     Text(
                                       '${item.medicament.prix.toInt()} FCFA / unité',
-                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                      style: const TextStyle(
+                                          fontSize: 12, color: Colors.grey),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
@@ -128,7 +192,9 @@ class _PanierScreenState extends State<PanierScreen> {
                               Row(
                                 children: [
                                   IconButton(
-                                    icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                                    icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        color: Colors.red),
                                     onPressed: () {
                                       setState(() {
                                         PanierService.diminuer(item.medicament);
@@ -137,10 +203,13 @@ class _PanierScreenState extends State<PanierScreen> {
                                   ),
                                   Text(
                                     '${item.quantite}',
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.add_circle_outline, color: Colors.teal),
+                                    icon: const Icon(Icons.add_circle_outline,
+                                        color: Colors.teal),
                                     onPressed: () {
                                       setState(() {
                                         PanierService.ajouter(item.medicament);
@@ -157,12 +226,14 @@ class _PanierScreenState extends State<PanierScreen> {
                   ),
                 ),
 
-                // NOUVEAU : carte "Adresse de livraison"
+                // Carte « Adresse de livraison »
                 Card(
                   margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                   child: ListTile(
-                    leading: Icon(Icons.location_on, color: Colors.teal.shade700),
+                    leading:
+                        Icon(Icons.location_on, color: Colors.teal.shade700),
                     title: const Text('Adresse de livraison',
                         style: TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(
@@ -172,7 +243,8 @@ class _PanierScreenState extends State<PanierScreen> {
                     ),
                     trailing: TextButton(
                       onPressed: _choisirAdresse,
-                      child: Text(_adresseLivraison == null ? 'Choisir' : 'Modifier'),
+                      child: Text(
+                          _adresseLivraison == null ? 'Choisir' : 'Modifier'),
                     ),
                   ),
                 ),
@@ -183,7 +255,10 @@ class _PanierScreenState extends State<PanierScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                     boxShadow: [
-                      BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2)),
+                      BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 10,
+                          offset: Offset(0, -2)),
                     ],
                   ),
                   child: Column(
@@ -191,26 +266,37 @@ class _PanierScreenState extends State<PanierScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Sous-total médicaments :', style: TextStyle(color: Colors.grey)),
-                          Text('${totalMedicaments.toInt()} FCFA', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          const Text('Sous-total médicaments :',
+                              style: TextStyle(color: Colors.grey)),
+                          Text('${totalMedicaments.toInt()} FCFA',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Frais de livraison (Dakar) :', style: TextStyle(color: Colors.grey)),
-                          Text('${fraisLivraison.toInt()} FCFA', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          const Text('Frais de livraison (Dakar) :',
+                              style: TextStyle(color: Colors.grey)),
+                          Text('${fraisLivraison.toInt()} FCFA',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
                         ],
                       ),
                       const Divider(height: 20),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Total à payer :', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const Text('Total à payer :',
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold)),
                           Text(
                             '${totalGeneral.toInt()} FCFA',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                            style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.teal.shade800),
                           ),
                         ],
                       ),
@@ -220,29 +306,16 @@ class _PanierScreenState extends State<PanierScreen> {
                         height: 50,
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.payment),
-                          label: const Text('Passer au paiement', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          label: const Text('Passer au paiement',
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.teal.shade700,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                           ),
-                          onPressed: () {
-                            // NOUVEAU : on exige une adresse avant de payer
-                            if (_adresseLivraison == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Choisissez d\'abord votre adresse de livraison'),
-                                ),
-                              );
-                              return;
-                            }
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => PaiementScreen(montantTotal: totalGeneral),
-                              ),
-                            );
-                          },
+                          onPressed: () => _passerAuPaiement(totalGeneral),
                         ),
                       ),
                     ],
