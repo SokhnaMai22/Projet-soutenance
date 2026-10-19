@@ -13,7 +13,7 @@ class CommandeController extends Controller
      * Règle de gestion : une commande contenant un médicament sur ordonnance
      * exige au moins une ordonnance VALIDEE du patient.
      */
-    private function verifierRegle(Request $request, array $ids): array
+    private function verifierRegle(Request $request, array $ids, bool $verrou = false): array
     {
         $besoinOrdonnance = DB::table('medicaments')
             ->whereIn('id', $ids)
@@ -26,9 +26,27 @@ class CommandeController extends Controller
 
         $ordonnances = Ordonnance::where('patient_id', $request->user()->id);
 
-        $validee = (clone $ordonnances)->where('statut', 'VALIDEE')->orderByDesc('id')->first();
+        // Une ordonnance validée ne sert qu'à UNE commande : on exclut celles déjà utilisées
+        $dejaUtilisees = DB::table('commandes')->whereNotNull('ordonnance_id')->select('ordonnance_id');
+
+        $requete = (clone $ordonnances)
+            ->where('statut', 'VALIDEE')
+            ->whereNotIn('id', $dejaUtilisees)
+            ->orderByDesc('id');
+        if ($verrou) {
+            $requete->lockForUpdate(); // évite deux commandes simultanées avec la même ordonnance
+        }
+        $validee = $requete->first();
         if ($validee) {
             return ['ok' => true, 'ordonnance_id' => $validee->id];
+        }
+
+        if ((clone $ordonnances)->where('statut', 'VALIDEE')->exists()) {
+            return [
+                'ok' => false,
+                'code' => 'ORDONNANCE_DEJA_UTILISEE',
+                'message' => 'Votre ordonnance validée a déjà été utilisée pour une commande. Veuillez en envoyer une nouvelle.',
+            ];
         }
 
         if ((clone $ordonnances)->where('statut', 'EN_ATTENTE')->exists()) {
@@ -83,11 +101,6 @@ class CommandeController extends Controller
 
         $ids = collect($data['lignes'])->pluck('medicament_id')->unique()->values()->all();
 
-        $resultat = $this->verifierRegle($request, $ids);
-        if (!$resultat['ok']) {
-            return response()->json($resultat, 422);
-        }
-
         $pharmacieId = DB::table('pharmacies')->value('id');
         if (!$pharmacieId) {
             return response()->json(['message' => 'Aucune pharmacie disponible.'], 422);
@@ -102,7 +115,15 @@ class CommandeController extends Controller
         }
         $fraisLivraison = 1000;
 
-        $commande = DB::transaction(function () use ($request, $data, $pharmacieId, $resultat, $prix, $montantMedicaments, $fraisLivraison) {
+        $refus = null;
+        $commande = DB::transaction(function () use ($request, $data, $ids, $pharmacieId, $prix, $montantMedicaments, $fraisLivraison, &$refus) {
+            // La règle est contrôlée ICI, au moment de la création, dans la transaction
+            $resultat = $this->verifierRegle($request, $ids, true);
+            if (!$resultat['ok']) {
+                $refus = $resultat;
+                return null;
+            }
+
             $numero = 'CMD-' . strtoupper(Str::random(6));
 
             $id = DB::table('commandes')->insertGetId([
@@ -128,6 +149,10 @@ class CommandeController extends Controller
 
             return ['id' => $id, 'numero_commande' => $numero];
         });
+
+        if ($refus) {
+            return response()->json($refus, 422);
+        }
 
         return response()->json([
             'message' => 'Commande créée',

@@ -1,0 +1,9 @@
+$kind: collection
+description: "Tests des ameliorations : regle de l'ordonnance a la creation de commande. Lancer P1, P2 puis A1 a A7 dans l'ordre, une requete a la fois."
+variables:
+  base_url: http://127.0.0.1:8000
+  token_patient: ""
+  token_pharmacien: ""
+  ordonnance_id: ""
+  medicament_libre_id: "1"
+  medicament_ordonnance_id: "2"

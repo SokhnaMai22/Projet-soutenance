@@ -1,0 +1,28 @@
+$kind: http-request
+description: Dans l'onglet Body, cliquez sur 'Select files' a cote de 'image' et choisissez une photo jpg ou png.
+url: "{{base_url}}/api/ordonnances"
+method: POST
+headers:
+  Accept: application/json
+body:
+  type: formdata
+  content:
+    - type: file
+      key: image
+      src: []
+    - type: text
+      key: note
+      value: Test v3
+auth:
+  type: bearer
+  credentials:
+    token: "{{token_patient}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      var j = pm.response.json();
+      pm.test('Statut 201', function(){ pm.response.to.have.status(201); });
+      pm.test('Statut EN_ATTENTE', function(){ pm.expect(j.statut).to.eql('EN_ATTENTE'); });
+      if (j.id) { pm.collectionVariables.set('ordonnance_id', j.id); }
+    language: text/javascript
+order: 2000

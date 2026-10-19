@@ -22,5 +22,7 @@ class DatabaseSeeder extends Seeder
                 ['name' => $nom, 'password' => 'password123', 'role' => $role]
             );
         }
+
+        $this->call(MedicamentSeeder::class);
     }
 }

@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{base_url}}/api/ordonnances/{{ordonnance_id}}/valider"
+method: POST
+headers:
+  Accept: application/json
+auth:
+  type: bearer
+  credentials:
+    token: "{{token_pharmacien}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      var j = pm.response.json();
+      pm.test('Statut 200', function(){ pm.response.to.have.status(200); });
+      pm.test('Statut VALIDEE', function(){ pm.expect(j.statut).to.eql('VALIDEE'); });
+    language: text/javascript
+order: 4000

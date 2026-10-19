@@ -1,7 +1,11 @@
+// lib/screens/ordonnance_screen.dart : le patient photographie (ou choisit) son ordonnance
+
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/photos.dart';
 
 class OrdonnanceScreen extends StatefulWidget {
   const OrdonnanceScreen({super.key});
@@ -13,7 +17,8 @@ class OrdonnanceScreen extends StatefulWidget {
 class _OrdonnanceScreenState extends State<OrdonnanceScreen> {
   final ImagePicker _picker = ImagePicker();
   List<dynamic> _ordonnances = [];
-  bool _loading = true;
+  bool _chargement = true;
+  bool _envoi = false;
 
   @override
   void initState() {
@@ -22,36 +27,40 @@ class _OrdonnanceScreenState extends State<OrdonnanceScreen> {
   }
 
   Future<void> _charger() async {
-    setState(() => _loading = true);
+    setState(() => _chargement = true);
     final liste = await AuthService.mesOrdonnances();
     if (!mounted) return;
     setState(() {
       _ordonnances = liste;
-      _loading = false;
+      _chargement = false;
     });
   }
 
-  Future<void> _nouvelle() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Wrap(children: [
-          ListTile(
-            leading: const Icon(Icons.camera_alt),
-            title: const Text('Prendre une photo'),
-            onTap: () => Navigator.pop(ctx, ImageSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library),
-            title: const Text('Choisir dans la galerie'),
-            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-          ),
-        ]),
-      ),
-    );
-    if (source == null) return;
+  void _message(String texte, {bool erreur = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: erreur ? AppColors.rouge : AppColors.vertFonce,
+      content: Text(texte),
+    ));
+  }
 
-    final XFile? photo = await _picker.pickImage(source: source, imageQuality: 80);
+  Future<void> _prendre(ImageSource source) async {
+    XFile? photo;
+    try {
+      photo = await _picker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1800,
+        preferredCameraDevice: CameraDevice.rear,
+      );
+    } catch (e) {
+      _message(
+          source == ImageSource.camera
+              ? 'Impossible d\'ouvrir l\'appareil photo sur cet appareil. Choisissez plutôt une image de la galerie.'
+              : 'Impossible d\'ouvrir la galerie.',
+          erreur: true);
+      return;
+    }
     if (photo == null) return;
     final bytes = await photo.readAsBytes();
     if (!mounted) return;
@@ -62,70 +71,180 @@ class _OrdonnanceScreenState extends State<OrdonnanceScreen> {
     );
     if (note == null) return;
 
+    setState(() => _envoi = true);
     final nom = photo.name.isNotEmpty ? photo.name : 'ordonnance.jpg';
     final err = await AuthService.envoyerOrdonnance(bytes, nom, note);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(err ?? 'Ordonnance envoyée au pharmacien'),
-    ));
-    if (err == null) _charger();
-  }
-
-  Chip _chip(String statut) {
-    switch (statut) {
-      case 'VALIDEE':
-        return Chip(label: const Text('Validée'), backgroundColor: Colors.green.shade100);
-      case 'REJETEE':
-        return Chip(label: const Text('Rejetée'), backgroundColor: Colors.red.shade100);
-      default:
-        return Chip(label: const Text('En attente'), backgroundColor: Colors.orange.shade100);
+    setState(() => _envoi = false);
+    if (err == null) {
+      _message('Ordonnance envoyée au pharmacien');
+      _charger();
+    } else {
+      _message(err, erreur: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: AppColors.fond,
       appBar: AppBar(
-        title: const Text('Mes Ordonnances'),
-        backgroundColor: Colors.teal.shade700,
-        foregroundColor: Colors.white,
+        title: const Text('Mes ordonnances'),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _charger),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _nouvelle,
-        backgroundColor: Colors.teal.shade700,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_a_photo),
-        label: const Text('Nouvelle ordonnance'),
+      body: RefreshIndicator(
+        onRefresh: _charger,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _carteEnvoi(),
+            const SizedBox(height: 22),
+            const Text('Historique',
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.texte)),
+            const SizedBox(height: 10),
+            if (_chargement)
+              const Padding(
+                padding: EdgeInsets.all(30),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_ordonnances.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: decoCarte(),
+                child: const Column(children: [
+                  Icon(Icons.description_outlined, size: 44, color: AppColors.gris),
+                  SizedBox(height: 8),
+                  Text('Aucune ordonnance envoyée pour le moment',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.gris)),
+                ]),
+              )
+            else
+              ..._ordonnances.map((o) => _ligne(o as Map<String, dynamic>)),
+          ],
+        ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _ordonnances.isEmpty
-              ? const Center(child: Text('Aucune ordonnance envoyée'))
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
-                  itemCount: _ordonnances.length,
-                  itemBuilder: (context, i) {
-                    final o = _ordonnances[i];
-                    final statut = o['statut'] as String;
-                    final motif = o['motif_rejet'];
-                    return Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.assignment, color: Colors.teal),
-                        title: Text(o['numero_ordonnance'],
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(
-                          'Envoyée le ${o['date_envoi']}'
-                          '${motif != null ? '\nMotif : $motif' : ''}',
-                        ),
-                        trailing: _chip(statut),
-                      ),
-                    );
-                  },
+    );
+  }
+
+  Widget _carteEnvoi() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.vertFonce, AppColors.vert],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: ombreCarte(),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Envoyer une ordonnance',
+              style: TextStyle(
+                  color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          const Text(
+            'Photo nette, texte lisible, en entier. Le pharmacien la vérifie avant la commande.',
+            style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.35),
+          ),
+          const SizedBox(height: 16),
+          if (_envoi)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(8),
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            )
+          else
+            Row(children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _prendre(ImageSource.camera),
+                  icon: const Icon(Icons.photo_camera),
+                  label: const Text('Prendre en photo'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.vertFonce,
+                  ),
                 ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _prendre(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Galerie'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white70),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _ligne(Map<String, dynamic> o) {
+    final id = int.tryParse(o['id'].toString()) ?? 0;
+    final motif = o['motif_rejet'];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: decoCarte(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ZoomOrdonnanceScreen(
+                    id: id, titre: o['numero_ordonnance'].toString()),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: ImageOrdonnance(id: id, hauteur: 72, largeur: 72),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: Text(o['numero_ordonnance'].toString(),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15)),
+                  ),
+                  StatutOrdonnance(o['statut'].toString()),
+                ]),
+                const SizedBox(height: 4),
+                Text('Envoyée le ${o['date_envoi']}',
+                    style: const TextStyle(fontSize: 12, color: AppColors.gris)),
+                if (motif != null) ...[
+                  const SizedBox(height: 6),
+                  Text('Motif du rejet : $motif',
+                      style: const TextStyle(
+                          fontSize: 12.5, color: AppColors.rouge)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -150,38 +269,52 @@ class _ApercuState extends State<_Apercu> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Aperçu de l\'ordonnance'),
-        backgroundColor: Colors.teal.shade700,
-        foregroundColor: Colors.white,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.memory(widget.bytes, fit: BoxFit.contain),
+      backgroundColor: AppColors.fond,
+      appBar: AppBar(title: const Text('Vérifier la photo')),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: InteractiveViewer(
+                  child: Image.memory(widget.bytes, fit: BoxFit.contain),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _noteCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Note pour le pharmacien (facultatif)',
-              border: OutlineInputBorder(),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _noteCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Note pour le pharmacien (facultatif)',
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => Navigator.pop(context, _noteCtrl.text),
-              icon: const Icon(Icons.send),
-              label: const Text('Envoyer'),
-            ),
-          ),
-        ]),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Reprendre'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context, _noteCtrl.text),
+                  icon: const Icon(Icons.send),
+                  label: const Text('Envoyer au pharmacien'),
+                ),
+              ),
+            ]),
+          ]),
+        ),
       ),
     );
   }

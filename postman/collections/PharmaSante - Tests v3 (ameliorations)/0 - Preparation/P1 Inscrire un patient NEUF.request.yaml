@@ -1,0 +1,26 @@
+$kind: http-request
+description: Cree un patient avec un email unique (horodatage). Garde son jeton dans token_patient.
+url: "{{base_url}}/api/register"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Patient Test",
+      "email": "patient{{$timestamp}}@test.sn",
+      "password": "password123"
+    }
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      var j = pm.response.json();
+      pm.test('Statut 201', function(){ pm.response.to.have.status(201); });
+      pm.test('Jeton recu', function(){ pm.expect(j.token).to.be.a('string'); });
+      if (j.token) { pm.collectionVariables.set('token_patient', j.token); }
+    language: text/javascript
+order: 1000
