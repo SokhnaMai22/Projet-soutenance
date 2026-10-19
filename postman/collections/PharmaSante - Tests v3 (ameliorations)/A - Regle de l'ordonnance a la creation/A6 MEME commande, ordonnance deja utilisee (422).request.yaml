@@ -1,0 +1,30 @@
+$kind: http-request
+url: "{{base_url}}/api/commande"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "adresse_livraison": "Dakar, Plateau",
+      "lignes": [
+        {
+          "medicament_id": "{{medicament_ordonnance_id}}",
+          "quantite": 1
+        }
+      ]
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{token_patient}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Statut 422', function(){ pm.response.to.have.status(422); });
+      var j = pm.response.json();
+      pm.test('Code ORDONNANCE_DEJA_UTILISEE', function(){ pm.expect(j.code).to.eql('ORDONNANCE_DEJA_UTILISEE'); });
+    language: text/javascript
+order: 6000

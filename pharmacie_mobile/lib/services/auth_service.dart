@@ -21,10 +21,8 @@ class AuthService {
     return _appel('/api/login', {'email': email, 'password': password});
   }
 
-  static Future<String?> register(
-      String name, String email, String password) async {
-    return _appel(
-        '/api/register', {'name': name, 'email': email, 'password': password});
+    static Future<String?> register(Map<String, String> champs) async {
+    return _appel('/api/register', champs);
   }
 
   // Retourne null si tout va bien, sinon un message d'erreur

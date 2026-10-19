@@ -1,163 +1,152 @@
-// lib/widgets/medicament_card.dart
+// lib/widgets/medicament_card.dart : carte produit (photo, nom, prix, ordonnance, ajout rapide)
 
 import 'package:flutter/material.dart';
 import '../models/medicament.dart';
+import '../theme/app_theme.dart';
+import 'photos.dart';
 
 class MedicamentCard extends StatelessWidget {
   final Medicament medicament;
   final VoidCallback onTap;
+  final VoidCallback onAjouter;
 
   const MedicamentCard({
     super.key,
     required this.medicament,
     required this.onTap,
+    required this.onAjouter,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Icône Médicament
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.medication_rounded,
-                  color: Colors.teal.shade700,
-                  size: 36,
-                ),
+    final m = medicament;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: decoCarte(rayon: 20),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Photo du produit sur fond blanc (packshot)
+            AspectRatio(
+              aspectRatio: 1.15,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(10),
+                    child: PhotoMedicament(fichier: m.image, rayon: 8, contenir: true),
+                  ),
+                  Positioned(
+                    left: 8,
+                    top: 8,
+                    child: _Badge(ordonnance: m.necessiteOrdonnance),
+                  ),
+                ],
               ),
-              const SizedBox(width: 14),
-
-              // 2. Informations du Médicament
-              Expanded(
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 2, 12, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      medicament.nom,
+                      m.nom,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        height: 1.2,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.texte,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
-                      '${medicament.forme} • ${medicament.dosage}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
-                      ),
+                      '${m.forme} · ${m.dosage}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11.5, color: AppColors.gris),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.local_pharmacy_outlined,
-                            size: 14, color: Colors.blueGrey),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            medicament.pharmacieNom,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.blueGrey,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                                        const SizedBox(height: 3),
+                    Text(
+                      m.pharmacieNom,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: AppColors.vertFonce),
                     ),
                     const SizedBox(height: 8),
-
-                    // 3. Prix et Badge Ordonnance
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${medicament.prix.toInt()} FCFA',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.teal.shade800,
+                    Text(
+                      '${m.prix.toInt()} FCFA',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.vertFonce,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 36,
+                      child: TextButton(
+                        onPressed: onAjouter,
+                        style: TextButton.styleFrom(
+                          backgroundColor: AppColors.vertClair,
+                          foregroundColor: AppColors.vertFonce,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
                           ),
+                          padding: EdgeInsets.zero,
                         ),
-                        _buildBadgeOrdonnance(),
-                      ],
+                        child: const Text(
+                          'Ajouter au panier',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  // Petit widget pour le badge "Ordonnance" ou "Vente libre"
-  Widget _buildBadgeOrdonnance() {
-    if (medicament.necessiteOrdonnance) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-          border: Border.all(color: Colors.orange.shade400),
-          borderRadius: BorderRadius.circular(8),
+class _Badge extends StatelessWidget {
+  final bool ordonnance;
+  const _Badge({required this.ordonnance});
+
+  @override
+  Widget build(BuildContext context) {
+    final fond = ordonnance ? AppColors.orange : AppColors.vert;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: fond,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(
+          ordonnance ? Icons.assignment_outlined : Icons.check_circle_outline,
+          size: 12,
+          color: Colors.white,
         ),
-        child: Row(
-          children: [
-            Icon(Icons.assignment_outlined, size: 12, color: Colors.orange.shade800),
-            const SizedBox(width: 4),
-            Text(
-              'Ordonnance requise',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.orange.shade800,
-              ),
-            ),
-          ],
+        const SizedBox(width: 4),
+        Text(
+          ordonnance ? 'Ordonnance' : 'Vente libre',
+          style: const TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
         ),
-      );
-    } else {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.green.shade50,
-          border: Border.all(color: Colors.green.shade400),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.check_circle_outline, size: 12, color: Colors.green.shade700),
-            const SizedBox(width: 4),
-            Text(
-              'Vente libre',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.green.shade700,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+      ]),
+    );
   }
 }

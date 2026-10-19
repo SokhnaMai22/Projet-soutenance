@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Ordonnance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class OrdonnanceController extends Controller
@@ -40,6 +41,25 @@ class OrdonnanceController extends Controller
     public function index()
     {
         return Ordonnance::with('patient:id,name')->orderByDesc('date_envoi')->get();
+    }
+
+    // GET /api/ordonnances/{id}/image : l'image n'est servie qu'au pharmacien, à l'admin
+    // et au patient propriétaire (donnée de santé : pas d'URL publique devinable)
+    public function image(Request $request, Ordonnance $ordonnance)
+    {
+        $user = $request->user();
+
+        $autorise = in_array($user->role, ['pharmacien', 'admin'], true)
+            || ($user->role === 'patient' && (int) $ordonnance->patient_id === (int) $user->id);
+
+        if (!$autorise) {
+            abort(403, 'Accès refusé.');
+        }
+        if (!$ordonnance->fichier_url || !Storage::disk('public')->exists($ordonnance->fichier_url)) {
+            abort(404, 'Image introuvable.');
+        }
+
+        return Storage::disk('public')->response($ordonnance->fichier_url);
     }
 
     public function valider(Request $request, Ordonnance $ordonnance)

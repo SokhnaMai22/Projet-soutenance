@@ -1,279 +1,244 @@
-// lib/screens/suivi_commande_screen.dart
+// lib/screens/suivi_commande_screen.dart : suivi réel des commandes du patient
 
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class SuiviCommandeScreen extends StatefulWidget {
-  final String numeroCommande;
-  final double montantTotal;
+  // Paramètres conservés pour compatibilité avec l'écran de paiement
+  final String? numeroCommande;
+  final double? montantTotal;
 
-  const SuiviCommandeScreen({
-    super.key,
-    this.numeroCommande = 'CMD-2026-084',
-    this.montantTotal = 4000.0,
-  });
+  const SuiviCommandeScreen({super.key, this.numeroCommande, this.montantTotal});
 
   @override
   State<SuiviCommandeScreen> createState() => _SuiviCommandeScreenState();
 }
 
 class _SuiviCommandeScreenState extends State<SuiviCommandeScreen> {
-  // Étape actuelle : 0=Reçue, 1=Payée, 2=Préparée, 3=En cours de livraison, 4=Livrée
-  int _etapeActuelle = 2; // Par défaut : en préparation à la pharmacie
+  List<dynamic> _commandes = [];
+  bool _chargement = true;
+  String? _erreur;
+  Timer? _minuteur;
 
-  final List<Map<String, dynamic>> _etapes = [
-    {
-      'titre': 'Commande confirmée',
-      'description': 'Votre commande a été enregistrée avec succès.',
-      'icone': Icons.receipt_long,
-    },
-    {
-      'titre': 'Paiement Wave / OM validé',
-      'description': 'Transaction sécurisée confirmée.',
-      'icone': Icons.verified,
-    },
-    {
-      'titre': 'Préparation en pharmacie',
-      'description': 'Pharmacie Guigon prépare vos médicaments.',
-      'icone': Icons.local_pharmacy,
-    },
-    {
-      'titre': 'En cours de livraison',
-      'description': 'Le livreur fait route vers votre adresse.',
-      'icone': Icons.delivery_dining,
-    },
-    {
-      'titre': 'Commande livrée',
-      'description': 'Médicaments remis en main propre.',
-      'icone': Icons.home,
-    },
+  static const _etapes = [
+    ['Commande enregistrée', 'Votre commande est transmise à la pharmacie.', Icons.receipt_long],
+    ['Préparation en pharmacie', 'Le pharmacien prépare vos médicaments.', Icons.local_pharmacy],
+    ['En cours de livraison', 'Le livreur est en route vers vous.', Icons.delivery_dining],
+    ['Commande livrée', 'Médicaments remis en main propre.', Icons.home],
   ];
 
-  void _avancerEtape() {
-    setState(() {
-      if (_etapeActuelle < _etapes.length - 1) {
-        _etapeActuelle++;
-      } else {
-        _etapeActuelle = 0; // Recommencer la démo
-      }
-    });
+  @override
+  void initState() {
+    super.initState();
+    _charger();
+    _minuteur = Timer.periodic(const Duration(seconds: 8), (_) => _charger(silencieux: true));
+  }
+
+  @override
+  void dispose() {
+    _minuteur?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _charger({bool silencieux = false}) async {
+    if (!silencieux) setState(() => _chargement = true);
+    try {
+      final l = await ApiService.mesCommandes();
+      if (!mounted) return;
+      setState(() {
+        _commandes = l;
+        _erreur = null;
+        _chargement = false;
+      });
+    } catch (e) {
+      if (!mounted || silencieux) return;
+      setState(() {
+        _erreur = 'Impossible de joindre le serveur';
+        _chargement = false;
+      });
+    }
+  }
+
+  int _etape(String statut) {
+    switch (statut) {
+      case 'EN_PREPARATION':
+      case 'PRETE':
+        return 1;
+      case 'EN_LIVRAISON':
+        return 2;
+      case 'LIVREE':
+        return 3;
+      default:
+        return 0; // CREEE, PAYEE
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: AppColors.fond,
       appBar: AppBar(
-        title: const Text('Suivi de Commande'),
-        backgroundColor: Colors.teal.shade700,
-        foregroundColor: Colors.white,
+        title: const Text('Suivi de mes commandes'),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _charger),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. Carte résumé commande
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Commande #${widget.numeroCommande}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      body: RefreshIndicator(
+        onRefresh: _charger,
+        child: _chargement
+            ? ListView(children: const [
+                SizedBox(height: 200),
+                Center(child: CircularProgressIndicator()),
+              ])
+            : _erreur != null
+                ? ListView(children: [
+                    const SizedBox(height: 160),
+                    const Icon(Icons.wifi_off_rounded, size: 52, color: AppColors.gris),
+                    const SizedBox(height: 10),
+                    Center(
+                        child: Text(_erreur!,
+                            style: const TextStyle(color: AppColors.gris))),
+                  ])
+                : _commandes.isEmpty
+                    ? ListView(children: const [
+                        SizedBox(height: 160),
+                        Icon(Icons.shopping_bag_outlined,
+                            size: 56, color: AppColors.gris),
+                        SizedBox(height: 10),
+                        Center(
+                          child: Text('Vous n\'avez pas encore de commande',
+                              style: TextStyle(color: AppColors.gris)),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.teal.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.teal),
-                          ),
-                          child: Text(
-                            '${widget.montantTotal.toInt()} FCFA',
-                            style: TextStyle(
-                              color: Colors.teal.shade800,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 20),
-                    const Row(
-                      children: [
-                        Icon(Icons.location_on_outlined, size: 16, color: Colors.blueGrey),
-                        SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Destination : Dakar, Médina Rue 22 x 15',
-                            style: TextStyle(fontSize: 13, color: Colors.blueGrey),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // 2. Coordonnées du livreur (Règle 2.1.4 : assignation au livreur)
-            if (_etapeActuelle >= 3)
-              Card(
-                elevation: 2,
-                color: Colors.blue.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Colors.blue.shade200),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(14.0),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: Colors.blue.shade700,
-                        child: const Icon(Icons.two_wheeler, color: Colors.white),
+                      ])
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _commandes.length,
+                        itemBuilder: (context, i) =>
+                            _carte(_commandes[i] as Map<String, dynamic>, i == 0),
                       ),
-                      const SizedBox(width: 12),
-                      const Expanded(
+      ),
+    );
+  }
+
+  Widget _carte(Map<String, dynamic> c, bool premiere) {
+    final statut = c['statut'].toString();
+    final annulee = statut == 'ANNULEE';
+    final etape = _etape(statut);
+    final lignes = (c['lignes'] as List<dynamic>?) ?? [];
+    final livreur = c['livreur_nom'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: decoCarte(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+              child: Text('Commande ${c['numero_commande']}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 16)),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.vertClair,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text('${c['montant_total'].toString().split('.').first} FCFA',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                      color: AppColors.vertFonce)),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            const Icon(Icons.location_on_outlined, size: 16, color: AppColors.gris),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text('${c['adresse_livraison']}',
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.gris)),
+            ),
+          ]),
+          if (lignes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(lignes.map((l) => '${l['quantite']} × ${l['nom']}').join('  ·  '),
+                style: const TextStyle(fontSize: 12.5, color: AppColors.texte)),
+          ],
+          const Divider(height: 24),
+          if (annulee)
+            const Text('Commande annulée',
+                style: TextStyle(
+                    color: AppColors.rouge, fontWeight: FontWeight.w800))
+          else
+            ...List.generate(_etapes.length, (i) {
+              final fait = i <= etape;
+              final courant = i == etape;
+              final derniere = i == _etapes.length - 1;
+              return IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Column(children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: fait ? AppColors.vert : Colors.grey.shade200,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(_etapes[i][2] as IconData,
+                            size: 18,
+                            color: fait ? Colors.white : Colors.grey),
+                      ),
+                      if (!derniere)
+                        Expanded(
+                          child: Container(
+                            width: 3,
+                            color: i < etape
+                                ? AppColors.vert
+                                : Colors.grey.shade200,
+                          ),
+                        ),
+                    ]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Livreur assigné : Ibrahima Sow',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
-                            Text(
-                              'Moto Jakarta • Arrivée estimée : ~15 min',
-                              style: TextStyle(fontSize: 12, color: Colors.blueGrey),
-                            ),
+                            Text(_etapes[i][0] as String,
+                                style: TextStyle(
+                                    fontWeight: courant
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    color: fait
+                                        ? AppColors.texte
+                                        : Colors.grey)),
+                            if (courant)
+                              Text(
+                                i == 2 && livreur != null
+                                    ? 'Livreur : $livreur'
+                                                                        : (i == 1 && statut == 'PRETE')
+                                        ? 'Commande prête, en attente d\'un livreur'
+                                        : _etapes[i][1] as String,
+                                style: const TextStyle(
+                                    fontSize: 12, color: AppColors.gris),
+                              ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.phone, color: Colors.green),
-                        tooltip: 'Appeler',
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Appel du livreur : +221 77 987 65 43')),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ),
-
-            const SizedBox(height: 16),
-
-            // 3. Timeline des étapes
-            const Text(
-              'Statut d\'acheminement :',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12.0),
-                child: Column(
-                  children: List.generate(_etapes.length, (index) {
-                    final etape = _etapes[index];
-                    final bool estPasse = index <= _etapeActuelle;
-                    final bool estEnCours = index == _etapeActuelle;
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Rond de l'étape
-                          Column(
-                            children: [
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: estPasse
-                                      ? (estEnCours ? Colors.orange : Colors.teal.shade700)
-                                      : Colors.grey.shade300,
-                                ),
-                                child: Icon(
-                                  estPasse ? etape['icone'] : Icons.circle,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                              ),
-                              if (index < _etapes.length - 1)
-                                Container(
-                                  width: 2,
-                                  height: 35,
-                                  color: estPasse ? Colors.teal.shade700 : Colors.grey.shade300,
-                                ),
-                            ],
-                          ),
-                          const SizedBox(width: 14),
-
-                          // Textes de l'étape
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  etape['titre'],
-                                  style: TextStyle(
-                                    fontWeight: estPasse ? FontWeight.bold : FontWeight.normal,
-                                    color: estPasse ? Colors.black87 : Colors.grey,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  etape['description'],
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: estPasse ? Colors.black54 : Colors.grey.shade400,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 4. Bouton de démonstration pour le Jury
-            Center(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.fast_forward),
-                label: const Text('Simuler l\'étape suivante (Démo Jury)'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal.shade700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: _avancerEtape,
-              ),
-            ),
-          ],
-        ),
+              );
+            }),
+        ],
       ),
     );
   }

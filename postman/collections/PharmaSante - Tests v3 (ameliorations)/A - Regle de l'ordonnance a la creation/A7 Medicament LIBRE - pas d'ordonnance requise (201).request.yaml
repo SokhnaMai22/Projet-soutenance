@@ -1,0 +1,28 @@
+$kind: http-request
+name: "A7 Medicament LIBRE : pas d'ordonnance requise (201)"
+url: "{{base_url}}/api/commande"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "adresse_livraison": "Dakar, Plateau",
+      "lignes": [
+        {
+          "medicament_id": "{{medicament_libre_id}}",
+          "quantite": 2
+        }
+      ]
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{token_patient}}"
+scripts:
+  - type: afterResponse
+    code: pm.test('Statut 201', function(){ pm.response.to.have.status(201); });
+    language: text/javascript
+order: 7000

@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const PharmaSanteApp());
@@ -15,14 +16,7 @@ class PharmaSanteApp extends StatelessWidget {
     return MaterialApp(
       title: 'PharmaSanté Sénégal',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal,
-          primary: Colors.teal.shade700,
-        ),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-      ),
+      theme: buildAppTheme(),
       home: const LoginScreen(),
     );
   }

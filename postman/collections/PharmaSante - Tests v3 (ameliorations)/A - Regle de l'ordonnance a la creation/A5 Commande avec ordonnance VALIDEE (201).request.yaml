@@ -1,0 +1,30 @@
+$kind: http-request
+url: "{{base_url}}/api/commande"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "adresse_livraison": "Dakar, Plateau",
+      "lignes": [
+        {
+          "medicament_id": "{{medicament_ordonnance_id}}",
+          "quantite": 1
+        }
+      ]
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{token_patient}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      var j = pm.response.json();
+      pm.test('Statut 201', function(){ pm.response.to.have.status(201); });
+      pm.test('Commande CREEE', function(){ pm.expect(j.commande.statut).to.eql('CREEE'); });
+    language: text/javascript
+order: 5000

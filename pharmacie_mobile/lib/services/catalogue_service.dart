@@ -1,91 +1,52 @@
 // lib/services/catalogue_service.dart
 
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/medicament.dart';
+import 'api_service.dart';
+
+class Pharmacie {
+  final int id;
+  final String nom;
+  final String quartier;
+  final String pharmacienNom;
+  final String? photo;
+  Pharmacie(this.id, this.nom, this.quartier, this.pharmacienNom, this.photo);
+}
 
 class CatalogueService {
-  // URL de votre API Laravel
-  static const String apiUrl = 'http://127.0.0.1:8000/api/medicaments';
+  static List<Medicament> medicaments = [];
+  static List<Pharmacie> pharmacies = [];
 
-  // Liste en mémoire
-  static List<Medicament> medicaments = _donneesSecours;
-
-  // Données de secours locales (si le serveur est éteint)
-  static final List<Medicament> _donneesSecours = [
-    Medicament(
-      id: '1',
-      nom: 'Paracétamol (Doliprane)',
-      description: 'Soulage les maux de tête et la fièvre.',
-      prix: 1500,
-      necessiteOrdonnance: false,
-      forme: 'Comprimé',
-      dosage: '1000 mg',
-      pharmacieNom: 'Pharmacie Guigon (Dakar Plateau)',
-      stockDisponible: 25,
-    ),
-    Medicament(
-      id: '2',
-      nom: 'Amoxicilline',
-      description: 'Antibiotique à large spectre.',
-      prix: 3200,
-      necessiteOrdonnance: true,
-      forme: 'Gélule',
-      dosage: '500 mg',
-      pharmacieNom: 'Pharmacie Cheikh Anta Diop (Fann)',
-      stockDisponible: 12,
-    ),
-    Medicament(
-      id: '3',
-      nom: 'Vitamine C 1000',
-      description: 'Complément pour réduire la fatigue.',
-      prix: 2500,
-      necessiteOrdonnance: false,
-      forme: 'Comprimé effervescent',
-      dosage: '1000 mg',
-      pharmacieNom: 'Pharmacie de la Nation',
-      stockDisponible: 40,
-    ),
-  ];
-
-  // Fonction asynchrone qui interroge Laravel / MySQL
-  static Future<List<Medicament>> chargerDepuisApi() async {
+  /// Charge le catalogue depuis le serveur. Retourne null si tout va bien,
+  /// sinon un message d'erreur (on n'invente plus de données locales :
+  /// les identifiants doivent correspondre à la base pour que la commande soit valide).
+  static Future<String?> charger() async {
     try {
-      final response = await http.get(Uri.parse(apiUrl)).timeout(
-        const Duration(seconds: 3),
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> donneesJson = json.decode(response.body);
-
-        medicaments = donneesJson.map((item) {
-          return Medicament(
-            id: item['id'].toString(),
-            nom: item['nom'] ?? '',
-            description: item['description'] ?? '',
-            prix: double.tryParse(item['prix'].toString()) ?? 1500.0,
-            necessiteOrdonnance: item['necessite_ordonnance'] == 1 || item['necessite_ordonnance'] == true,
-            forme: item['forme'] ?? 'Comprimé',
-            dosage: item['dosage'] ?? '500 mg',
-            pharmacieNom: 'Pharmacie Guigon (Dakar Plateau)',
-            stockDisponible: 20,
-          );
-        }).toList();
-
-        return medicaments;
-      }
+      final meds = await ApiService.medicaments();
+      medicaments = meds
+          .map((e) => Medicament.fromJson(e as Map<String, dynamic>))
+          .toList();
+      final phs = await ApiService.pharmacies();
+      pharmacies = phs
+          .map((e) => Pharmacie(
+                int.tryParse(e['id'].toString()) ?? 0,
+                (e['nom'] ?? '') as String,
+                (e['quartier'] ?? '') as String,
+                (e['pharmacien_nom'] ?? '') as String,
+                e['photo'] as String?,
+              ))
+          .toList();
+      return null;
     } catch (e) {
-      // En cas de problème réseau, on utilise les données locales sans bloquer l'appli
-      medicaments = _donneesSecours;
+      return 'Impossible de charger le catalogue. Vérifiez la connexion au serveur.';
     }
-    return medicaments;
   }
 
-  // Recherche
-  static List<Medicament> rechercher(String texte) {
-    if (texte.isEmpty) return medicaments;
-    return medicaments
-        .where((m) => m.nom.toLowerCase().contains(texte.toLowerCase()))
-        .toList();
+  static List<String> get categories {
+    final set = <String>{};
+    for (final m in medicaments) {
+      set.add(m.categorie);
+    }
+    final liste = set.toList()..sort();
+    return liste;
   }
 }
