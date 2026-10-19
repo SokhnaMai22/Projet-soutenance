@@ -194,7 +194,7 @@ class _OngletCatalogueState extends State<_OngletCatalogue> {
                       crossAxisCount: 2,
                       mainAxisSpacing: 14,
                       crossAxisSpacing: 14,
-                      childAspectRatio: 0.68,
+                      mainAxisExtent: 310,
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, i) => MedicamentCard(

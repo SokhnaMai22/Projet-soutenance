@@ -17,7 +17,16 @@ class PharmaSanteApp extends StatelessWidget {
       title: 'PharmaSanté Sénégal',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
+            builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+              textScaler: mq.textScaler
+                  .clamp(minScaleFactor: 0.85, maxScaleFactor: 1.0)),
+          child: child!,
+        );
+      },
       home: const LoginScreen(),
     );
   }
-}
+} 

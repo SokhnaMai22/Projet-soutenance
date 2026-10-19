@@ -1,6 +1,6 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\MedicamentController;
 use Illuminate\Support\Facades\Route;
 
 // Page d'accueil Laravel
@@ -8,11 +8,6 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// Catalogue public (lecture seule)
-Route::get('/api/medicaments', function () {
-    return response()->json(DB::table('medicaments')->get());
-});
-
-Route::get('/api/pharmacies', function () {
-    return response()->json(DB::table('pharmacies')->get());
-});
+// Catalogue public (lecture seule) : médicaments avec stock et pharmacie
+Route::get('/api/medicaments', [MedicamentController::class, 'index']);
+Route::get('/api/pharmacies', [MedicamentController::class, 'pharmacies']);

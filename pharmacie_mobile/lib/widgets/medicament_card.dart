@@ -78,7 +78,7 @@ class MedicamentCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 11, color: AppColors.vertFonce),
                     ),
-                    const SizedBox(height: 8),
+                   const Spacer(),
                     Text(
                       '${m.prix.toInt()} FCFA',
                       style: const TextStyle(
