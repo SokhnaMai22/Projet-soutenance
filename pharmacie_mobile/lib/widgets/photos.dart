@@ -50,9 +50,11 @@ class PhotoMedicament extends StatelessWidget {
     return Image.asset(
       chemins.first,
       height: hauteur,
+      cacheWidth: 500,
       width: double.infinity,
       fit: contenir ? BoxFit.contain : BoxFit.cover,
       errorBuilder: (_, __, ___) => _essayer(chemins.sublist(1), remplacement),
+      
     );
   }
 

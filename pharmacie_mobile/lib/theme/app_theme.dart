@@ -51,9 +51,13 @@ ThemeData buildAppTheme() {
         borderSide: BorderSide.none,
       ),
     ),
-    navigationBarTheme: const NavigationBarThemeData(
+       navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.white,
       indicatorColor: AppColors.vertClair,
+      height: 68,
+      labelTextStyle: WidgetStateProperty.all(
+        const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      ),
     ),
   );
 }
