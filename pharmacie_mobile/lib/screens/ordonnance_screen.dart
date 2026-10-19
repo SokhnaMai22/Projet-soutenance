@@ -287,7 +287,7 @@ class _ApercuState extends State<_Apercu> {
             TextField(
               controller: _noteCtrl,
               decoration: const InputDecoration(
-                labelText: 'Note pour le pharmacien (facultatif)',
+                labelText: 'Note pour le pharmacien',
               ),
             ),
             const SizedBox(height: 12),
