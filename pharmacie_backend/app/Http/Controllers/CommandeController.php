@@ -9,24 +9,35 @@ use Illuminate\Support\Str;
 
 class CommandeController extends Controller
 {
-    /**
-     * Règle de gestion : une commande contenant un médicament sur ordonnance
-     * exige au moins une ordonnance VALIDEE du patient.
-     */
-    private function verifierRegle(Request $request, array $ids, bool $verrou = false): array
+    /** Regroupe des lignes de panier en [medicament_id => quantité totale]. */
+    private function regrouper(array $lignes): array
     {
-        $besoinOrdonnance = DB::table('medicaments')
-            ->whereIn('id', $ids)
-            ->where('necessite_ordonnance', 1)
-            ->exists();
+        $quantites = [];
+        foreach ($lignes as $l) {
+            $id = (int) $l['medicament_id'];
+            $quantites[$id] = ($quantites[$id] ?? 0) + (int) $l['quantite'];
+        }
+        return $quantites;
+    }
 
-        if (!$besoinOrdonnance) {
+    /**
+     * Règle de gestion : un panier contenant un médicament sur ordonnance exige une
+     * ordonnance VALIDEE du patient, jamais utilisée, qui AUTORISE ces médicaments
+     * dans ces quantités (liste fixée par le pharmacien à la validation).
+     */
+    private function verifierRegle(Request $request, array $quantites, bool $verrou = false): array
+    {
+        $idsRx = DB::table('medicaments')
+            ->whereIn('id', array_keys($quantites))
+            ->where('necessite_ordonnance', 1)
+            ->pluck('id')
+            ->all();
+
+        if (!$idsRx) {
             return ['ok' => true, 'ordonnance_id' => null];
         }
 
         $ordonnances = Ordonnance::where('patient_id', $request->user()->id);
-
-        // Une ordonnance validée ne sert qu'à UNE commande : on exclut celles déjà utilisées
         $dejaUtilisees = DB::table('commandes')->whereNotNull('ordonnance_id')->select('ordonnance_id');
 
         $requete = (clone $ordonnances)
@@ -36,16 +47,30 @@ class CommandeController extends Controller
         if ($verrou) {
             $requete->lockForUpdate(); // évite deux commandes simultanées avec la même ordonnance
         }
-        $validee = $requete->first();
-        if ($validee) {
-            return ['ok' => true, 'ordonnance_id' => $validee->id];
+        $disponibles = $requete->get();
+
+        foreach ($disponibles as $o) {
+            $autorises = DB::table('ordonnance_medicaments')
+                ->where('ordonnance_id', $o->id)
+                ->pluck('quantite_max', 'medicament_id');
+
+            $couvre = true;
+            foreach ($idsRx as $mid) {
+                if (($autorises[$mid] ?? 0) < $quantites[$mid]) {
+                    $couvre = false;
+                    break;
+                }
+            }
+            if ($couvre) {
+                return ['ok' => true, 'ordonnance_id' => $o->id];
+            }
         }
 
-        if ((clone $ordonnances)->where('statut', 'VALIDEE')->exists()) {
+        if ($disponibles->isNotEmpty()) {
             return [
                 'ok' => false,
-                'code' => 'ORDONNANCE_DEJA_UTILISEE',
-                'message' => 'Votre ordonnance validée a déjà été utilisée pour une commande. Veuillez en envoyer une nouvelle.',
+                'code' => 'MEDICAMENT_NON_AUTORISE',
+                'message' => 'Votre ordonnance validée ne couvre pas ces médicaments ou ces quantités.',
             ];
         }
 
@@ -54,6 +79,14 @@ class CommandeController extends Controller
                 'ok' => false,
                 'code' => 'ORDONNANCE_EN_ATTENTE',
                 'message' => 'Votre ordonnance est en cours de validation par le pharmacien.',
+            ];
+        }
+
+        if ((clone $ordonnances)->where('statut', 'VALIDEE')->exists()) {
+            return [
+                'ok' => false,
+                'code' => 'ORDONNANCE_DEJA_UTILISEE',
+                'message' => 'Votre ordonnance validée a déjà été utilisée pour une commande. Veuillez en envoyer une nouvelle.',
             ];
         }
 
@@ -72,18 +105,68 @@ class CommandeController extends Controller
         ];
     }
 
+    /** Première pharmacie active qui a, en stock, TOUS les médicaments du panier. */
+    private function choisirPharmacie(array $quantites, bool $verrou = false): ?int
+    {
+        $pharmacies = DB::table('pharmacies')->where('statut', 'ACTIVE')->orderBy('id')->pluck('id');
+
+        foreach ($pharmacies as $pid) {
+            $ok = true;
+            foreach ($quantites as $mid => $q) {
+                $requete = DB::table('stocks')->where('pharmacie_id', $pid)->where('medicament_id', $mid);
+                if ($verrou) {
+                    $requete->lockForUpdate();
+                }
+                $stock = $requete->value('quantite_disponible');
+                if ($stock === null || $stock < $q) {
+                    $ok = false;
+                    break;
+                }
+            }
+            if ($ok) {
+                return (int) $pid;
+            }
+        }
+        return null;
+    }
+
+    private function refusStock(): array
+    {
+        return [
+            'ok' => false,
+            'code' => 'STOCK_INSUFFISANT',
+            'message' => 'Ces médicaments ne sont pas tous disponibles, en quantité suffisante, dans une même pharmacie.',
+        ];
+    }
+
     // POST /api/commande/verifier : contrôle seul, n'enregistre rien
+    // Accepte soit 'lignes' (medicament_id + quantite), soit 'medicament_ids' (quantité 1 par défaut)
     public function verifier(Request $request)
     {
         $data = $request->validate([
-            'medicament_ids' => 'required|array|min:1',
-            'medicament_ids.*' => 'required|integer',
+            'medicament_ids'           => 'required_without:lignes|array|min:1',
+            'medicament_ids.*'         => 'integer',
+            'lignes'                   => 'required_without:medicament_ids|array|min:1',
+            'lignes.*.medicament_id'   => 'required|integer',
+            'lignes.*.quantite'        => 'required|integer|min:1|max:99',
         ]);
 
-        $resultat = $this->verifierRegle($request, $data['medicament_ids']);
+        if (!empty($data['lignes'])) {
+            $quantites = $this->regrouper($data['lignes']);
+        } else {
+            $quantites = [];
+            foreach ($data['medicament_ids'] as $id) {
+                $quantites[(int) $id] = 1;
+            }
+        }
 
+        $resultat = $this->verifierRegle($request, $quantites);
         if (!$resultat['ok']) {
             return response()->json($resultat, 422);
+        }
+
+        if ($this->choisirPharmacie($quantites) === null) {
+            return response()->json($this->refusStock(), 422);
         }
 
         return response()->json(['ok' => true]);
@@ -99,28 +182,30 @@ class CommandeController extends Controller
             'lignes.*.quantite' => 'required|integer|min:1|max:99',
         ]);
 
-        $ids = collect($data['lignes'])->pluck('medicament_id')->unique()->values()->all();
-
-        $pharmacieId = DB::table('pharmacies')->value('id');
-        if (!$pharmacieId) {
-            return response()->json(['message' => 'Aucune pharmacie disponible.'], 422);
-        }
+        $quantites = $this->regrouper($data['lignes']);
+        $ids = array_keys($quantites);
 
         // Les prix viennent de la base, jamais du téléphone
         $prix = DB::table('medicaments')->whereIn('id', $ids)->pluck('prix', 'id');
 
         $montantMedicaments = 0;
-        foreach ($data['lignes'] as $ligne) {
-            $montantMedicaments += $prix[$ligne['medicament_id']] * $ligne['quantite'];
+        foreach ($quantites as $mid => $q) {
+            $montantMedicaments += $prix[$mid] * $q;
         }
         $fraisLivraison = 1000;
 
         $refus = null;
-        $commande = DB::transaction(function () use ($request, $data, $ids, $pharmacieId, $prix, $montantMedicaments, $fraisLivraison, &$refus) {
-            // La règle est contrôlée ICI, au moment de la création, dans la transaction
-            $resultat = $this->verifierRegle($request, $ids, true);
+        $commande = DB::transaction(function () use ($request, $data, $quantites, $prix, $montantMedicaments, $fraisLivraison, &$refus) {
+            // Les règles sont contrôlées ICI, au moment de la création, dans la transaction
+            $resultat = $this->verifierRegle($request, $quantites, true);
             if (!$resultat['ok']) {
                 $refus = $resultat;
+                return null;
+            }
+
+            $pharmacieId = $this->choisirPharmacie($quantites, true);
+            if ($pharmacieId === null) {
+                $refus = $this->refusStock();
                 return null;
             }
 
@@ -138,13 +223,19 @@ class CommandeController extends Controller
                 'statut' => 'CREEE',
             ]);
 
-            foreach ($data['lignes'] as $ligne) {
+            foreach ($quantites as $mid => $q) {
                 DB::table('lignes_commande')->insert([
                     'commande_id' => $id,
-                    'medicament_id' => $ligne['medicament_id'],
-                    'quantite' => $ligne['quantite'],
-                    'prix_unitaire' => $prix[$ligne['medicament_id']],
+                    'medicament_id' => $mid,
+                    'quantite' => $q,
+                    'prix_unitaire' => $prix[$mid],
                 ]);
+
+                // Le stock de la pharmacie diminue
+                DB::table('stocks')
+                    ->where('pharmacie_id', $pharmacieId)
+                    ->where('medicament_id', $mid)
+                    ->decrement('quantite_disponible', $q);
             }
 
             return ['id' => $id, 'numero_commande' => $numero];

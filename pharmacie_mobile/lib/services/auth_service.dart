@@ -85,13 +85,23 @@ class AuthService {
   }
 
   // Pharmacien : valider
-  static Future<bool> validerOrdonnance(int id) async {
-    final res = await http.post(
+    // Pharmacien : valider en indiquant les médicaments autorisés
+  // Retourne null si OK, sinon le message d'erreur
+  static Future<String?> validerOrdonnance(
+      int id, List<Map<String, dynamic>> medicaments) async {
+    try {
+      final res = await http.post(
         Uri.parse('$baseUrl/api/ordonnances/$id/valider'),
-        headers: headers);
-    return res.statusCode == 200;
+        headers: headers,
+        body: jsonEncode({'medicaments': medicaments}),
+      );
+      if (res.statusCode == 200) return null;
+      final data = jsonDecode(res.body);
+      return data['message']?.toString() ?? 'Erreur ${res.statusCode}';
+    } catch (e) {
+      return 'Impossible de joindre le serveur';
+    }
   }
-
   // Pharmacien : rejeter avec motif
   static Future<bool> rejeterOrdonnance(int id, String motif) async {
     final res = await http.post(
@@ -102,12 +112,13 @@ class AuthService {
   }
     // Patient : vérifier la règle « ordonnance validée » avant le paiement.
   // Retourne null si la commande est autorisée, sinon le message du serveur.
-  static Future<String?> verifierCommande(List<int> medicamentIds) async {
+    static Future<String?> verifierCommande(
+      List<Map<String, dynamic>> lignes) async {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/commande/verifier'),
         headers: headers,
-        body: jsonEncode({'medicament_ids': medicamentIds}),
+        body: jsonEncode({'lignes': lignes}),
       );
       if (res.statusCode == 200) return null;
       final data = jsonDecode(res.body);

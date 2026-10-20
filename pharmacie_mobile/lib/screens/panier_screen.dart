@@ -48,12 +48,14 @@ class _PanierScreenState extends State<PanierScreen> {
       return;
     }
 
-    final ids = PanierService.articles
-        .map((a) => int.tryParse(a.medicament.id))
-        .whereType<int>()
-        .toList();
+        final lignes = PanierService.articles.map<Map<String, dynamic>>((a) {
+      return {
+        'medicament_id': int.tryParse(a.medicament.id) ?? 0,
+        'quantite': a.quantite,
+      };
+    }).toList();
 
-    final erreur = await AuthService.verifierCommande(ids);
+    final erreur = await AuthService.verifierCommande(lignes);
     if (!mounted) return;
 
     if (erreur != null) {
