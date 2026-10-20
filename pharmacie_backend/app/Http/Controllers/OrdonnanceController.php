@@ -62,14 +62,39 @@ class OrdonnanceController extends Controller
         return Storage::disk('public')->response($ordonnance->fichier_url);
     }
 
-    public function valider(Request $request, Ordonnance $ordonnance)
+        public function valider(Request $request, Ordonnance $ordonnance)
     {
-        $ordonnance->update([
-            'statut'        => 'VALIDEE',
-            'pharmacien_id' => $request->user()->id,
-            'motif_rejet'   => null,
+        // Le pharmacien indique les médicaments (et quantités maximales) que l'ordonnance autorise
+        $data = $request->validate([
+            'medicaments'                 => 'required|array|min:1',
+            'medicaments.*.medicament_id' => 'required|integer|exists:medicaments,id',
+            'medicaments.*.quantite'      => 'required|integer|min:1|max:99',
         ]);
-        return $ordonnance;
+
+        $autorises = [];
+        foreach ($data['medicaments'] as $m) {
+            $id = (int) $m['medicament_id'];
+            $autorises[$id] = ($autorises[$id] ?? 0) + (int) $m['quantite'];
+        }
+
+        DB::transaction(function () use ($request, $ordonnance, $autorises) {
+            $ordonnance->update([
+                'statut'        => 'VALIDEE',
+                'pharmacien_id' => $request->user()->id,
+                'motif_rejet'   => null,
+            ]);
+
+            DB::table('ordonnance_medicaments')->where('ordonnance_id', $ordonnance->id)->delete();
+            foreach ($autorises as $medicamentId => $quantite) {
+                DB::table('ordonnance_medicaments')->insert([
+                    'ordonnance_id' => $ordonnance->id,
+                    'medicament_id' => $medicamentId,
+                    'quantite_max'  => $quantite,
+                ]);
+            }
+        });
+
+        return $ordonnance->fresh();
     }
 
     public function rejeter(Request $request, Ordonnance $ordonnance)

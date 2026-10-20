@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/photos.dart';
 import 'login_screen.dart';
@@ -47,12 +48,122 @@ class _PharmacienScreenState extends State<PharmacienScreen> {
   int _compte(String statut) =>
       _liste.where((o) => o['statut'] == statut).length;
 
-  Future<void> _valider(int id) async {
-    final ok = await AuthService.validerOrdonnance(id);
+    Future<void> _valider(int id) async {
+    List<dynamic> catalogue;
+    try {
+      catalogue = await ApiService.medicaments();
+    } catch (e) {
+      _message('Impossible de charger la liste des médicaments', erreur: true);
+      return;
+    }
+    final rx = catalogue.where((m) {
+      final v = m['necessite_ordonnance'];
+      return v == true || v == 1 || v == '1';
+    }).toList();
     if (!mounted) return;
-    _message(ok ? 'Ordonnance validée' : 'Erreur lors de la validation',
-        erreur: !ok);
-    if (ok) _charger();
+
+    final choix = await showDialog<List<Map<String, dynamic>>>(
+      context: context,
+      builder: (ctx) {
+        final quantites = <int, int>{}; // médicament coché -> quantité maximale
+        return StatefulBuilder(
+          builder: (ctx, setD) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('Médicaments autorisés'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Cochez les médicaments prescrits sur l\'ordonnance et fixez la quantité maximale.',
+                    style: TextStyle(fontSize: 12.5, color: AppColors.gris),
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: rx.map<Widget>((m) {
+                        final mid = int.tryParse(m['id'].toString()) ?? 0;
+                        final coche = quantites.containsKey(mid);
+                        return Row(children: [
+                          Checkbox(
+                            value: coche,
+                            onChanged: (v) => setD(() {
+                              if (v == true) {
+                                quantites[mid] = 1;
+                              } else {
+                                quantites.remove(mid);
+                              }
+                            }),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '${m['nom']} ${m['dosage'] ?? ''}',
+                              style: const TextStyle(fontSize: 13.5),
+                            ),
+                          ),
+                          if (coche) ...[
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.remove_circle_outline),
+                              onPressed: () => setD(() {
+                                if (quantites[mid]! > 1) {
+                                  quantites[mid] = quantites[mid]! - 1;
+                                }
+                              }),
+                            ),
+                            Text('${quantites[mid]}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.add_circle_outline),
+                              onPressed: () => setD(() {
+                                if (quantites[mid]! < 99) {
+                                  quantites[mid] = quantites[mid]! + 1;
+                                }
+                              }),
+                            ),
+                          ],
+                        ]);
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler')),
+              ElevatedButton(
+                onPressed: quantites.isEmpty
+                    ? null
+                    : () => Navigator.pop(
+                          ctx,
+                          quantites.entries
+                              .map((e) => {
+                                    'medicament_id': e.key,
+                                    'quantite': e.value,
+                                  })
+                              .toList(),
+                        ),
+                child: const Text('Valider'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (choix == null) return;
+
+    final err = await AuthService.validerOrdonnance(id, choix);
+    if (!mounted) return;
+    _message(err ?? 'Ordonnance validée', erreur: err != null);
+    if (err == null) _charger();
   }
 
   Future<void> _rejeter(int id) async {
