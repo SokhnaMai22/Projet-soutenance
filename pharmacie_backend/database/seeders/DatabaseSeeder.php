@@ -10,16 +10,17 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $comptes = [
-            ['Patient Test',    'patient@test.sn',    'patient'],
-            ['Pharmacien Test', 'pharmacien@test.sn', 'pharmacien'],
-            ['Livreur Test',    'livreur@test.sn',    'livreur'],
-            ['Admin Test',      'admin@test.sn',      'admin'],
+            ['Awa Diop',         'awa.diop@patient.sn',      'patient'],
+            ['Moussa Ba',        'moussa.ba@patient.sn',     'patient'],
+            ['Dr Fatou Sow',     'fatou.sow@pharmacien.sn',  'pharmacien'],
+            ['Cheikh Ndiaye',    'cheikh@livreur.sn',        'livreur'],
+            ['Administrateur',   'admin@pharmasante.sn',     'admin'],
         ];
 
         foreach ($comptes as [$nom, $email, $role]) {
             User::updateOrCreate(
                 ['email' => $email],
-                ['name' => $nom, 'password' => 'password123', 'role' => $role]
+                ['name' => $nom, 'password' => 'Pharma2026!', 'role' => $role]
             );
         }
 
