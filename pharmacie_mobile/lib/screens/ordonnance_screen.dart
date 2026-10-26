@@ -99,8 +99,31 @@ class _OrdonnanceScreenState extends State<OrdonnanceScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _carteEnvoi(),
-            const SizedBox(height: 22),
+                       _carteEnvoi(),
+            const SizedBox(height: 16),
+            if (_ordonnances.any((o) => (o as Map)['statut'].toString() == 'VALIDEE')) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.vertClair,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.check_circle, color: AppColors.vert),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Ordonnance validée par le pharmacien. Allez dans l\'onglet Catalogue, ajoutez vos médicaments au panier, puis payez. Chaque ordonnance ne sert qu\'une seule fois.',
+                        style: TextStyle(fontSize: 13, height: 1.35),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             const Text('Historique',
                 style: TextStyle(
                     fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.texte)),
@@ -287,7 +310,7 @@ class _ApercuState extends State<_Apercu> {
             TextField(
               controller: _noteCtrl,
               decoration: const InputDecoration(
-                labelText: 'Note pour le pharmacien (facultatif)',
+                labelText: 'Note pour le pharmacien',
               ),
             ),
             const SizedBox(height: 12),
