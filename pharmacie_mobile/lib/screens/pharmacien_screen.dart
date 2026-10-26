@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/photos.dart';
 import 'login_screen.dart';
 import 'commandes_pharmacien_tab.dart';
+import 'gestion_catalogue_tab.dart';
 
 class PharmacienScreen extends StatefulWidget {
   const PharmacienScreen({super.key});
@@ -249,11 +250,17 @@ class _PharmacienScreenState extends State<PharmacienScreen> {
               icon: Icon(Icons.inventory_2_outlined),
               selectedIcon: Icon(Icons.inventory_2),
               label: 'Commandes'),
+          NavigationDestination(
+              icon: Icon(Icons.add_business_outlined),
+              selectedIcon: Icon(Icons.add_business),
+              label: 'Catalogue'),
         ],
       ),
       body: _onglet == 1
           ? const SafeArea(child: CommandesPharmacienTab())
-          : RefreshIndicator(
+          : _onglet == 2
+              ? const SafeArea(child: GestionCatalogueTab())
+              : RefreshIndicator(
         onRefresh: _charger,
         child: CustomScrollView(
           slivers: [

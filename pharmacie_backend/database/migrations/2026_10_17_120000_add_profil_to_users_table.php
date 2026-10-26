@@ -9,21 +9,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->string('prenom')->nullable()->after('name');
-            $table->string('nom')->nullable()->after('prenom');
-            $table->string('telephone', 20)->nullable()->unique()->after('email');
-            $table->date('date_naissance')->nullable();
-            $table->enum('sexe', ['homme', 'femme'])->nullable();
-            $table->string('ville')->nullable();
-            $table->string('adresse')->nullable();
+            if (!Schema::hasColumn('users', 'prenom'))         $table->string('prenom')->nullable()->after('name');
+            if (!Schema::hasColumn('users', 'nom'))            $table->string('nom')->nullable();
+            if (!Schema::hasColumn('users', 'telephone'))      $table->string('telephone', 20)->nullable()->unique()->after('email');
+            if (!Schema::hasColumn('users', 'date_naissance')) $table->date('date_naissance')->nullable();
+            if (!Schema::hasColumn('users', 'sexe'))           $table->enum('sexe', ['homme', 'femme'])->nullable();
+            if (!Schema::hasColumn('users', 'ville'))          $table->string('ville')->nullable();
+            if (!Schema::hasColumn('users', 'adresse'))        $table->string('adresse')->nullable();
         });
     }
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropUnique(['telephone']);
-            $table->dropColumn(['prenom', 'nom', 'telephone', 'date_naissance', 'sexe', 'ville', 'adresse']);
-        });
+        //
     }
 };

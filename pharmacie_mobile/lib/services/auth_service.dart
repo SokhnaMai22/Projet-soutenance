@@ -4,13 +4,11 @@ import 'package:http/http.dart' as http;
 
 class AuthService {
   // Edge : 127.0.0.1 | Émulateur Android : 10.0.2.2 | Vrai téléphone : IP du PC
-  static const String baseUrl = 'http://127.0.0.1:8000';
-
-  static String? token;
+  static const String baseUrl = String.fromEnvironment('API_URL',
+      defaultValue: 'http://187.126.0.25:8082');  static String? token;
   static Map<String, dynamic>? user;
 
   static String get role => (user?['role'] ?? '') as String;
-
   static Map<String, String> get headers => {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -142,6 +140,29 @@ class AuthService {
       final data = jsonDecode(res.body);
       return data['message']?.toString() ?? 'Erreur ${res.statusCode}';
     } catch (e) {
+      return 'Impossible de joindre le serveur';
+    }
+  }
+
+    // Pharmacien : ajouter un médicament (avec photo facultative).
+  // Retourne null si tout va bien, sinon un message d'erreur.
+  static Future<String?> ajouterMedicament(
+      Map<String, String> champs, Uint8List? bytes, String? nomFichier) async {
+    try {
+      final req =
+          http.MultipartRequest('POST', Uri.parse('$baseUrl/api/medicaments'));
+      req.headers['Accept'] = 'application/json';
+      req.headers['Authorization'] = 'Bearer $token';
+      req.fields.addAll(champs);
+      if (bytes != null) {
+        req.files.add(http.MultipartFile.fromBytes('image', bytes,
+            filename: nomFichier ?? 'photo.jpg'));
+      }
+      final res = await http.Response.fromStream(await req.send());
+      if (res.statusCode == 201) return null;
+      final data = jsonDecode(res.body);
+      return data['message']?.toString() ?? 'Erreur ${res.statusCode}';
+    } catch (e)   {
       return 'Impossible de joindre le serveur';
     }
   }
