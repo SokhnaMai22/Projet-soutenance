@@ -44,17 +44,27 @@ class PhotoMedicament extends StatelessWidget {
 
   static const _extensions = ['jpg', 'png', 'jpeg', 'webp'];
 
-  // Essaie chaque extension l'une après l'autre ; si aucune n'existe, affiche le visuel de remplacement
-  Widget _essayer(List<String> chemins, Widget remplacement) {
-    if (chemins.isEmpty) return remplacement;
+  // Essaie chaque extension dans l'application (assets) ; sinon charge la photo depuis le serveur ;
+  // si rien n'existe, affiche le visuel de remplacement
+  Widget _essayer(List<String> chemins, Widget remplacement, String? urlReseau) {
+    if (chemins.isEmpty) {
+      if (urlReseau == null) return remplacement;
+      return Image.network(
+        urlReseau,
+        height: hauteur,
+        width: double.infinity,
+        fit: contenir ? BoxFit.contain : BoxFit.cover,
+        errorBuilder: (_, __, ___) => remplacement,
+      );
+    }
     return Image.asset(
       chemins.first,
       height: hauteur,
       cacheWidth: 500,
       width: double.infinity,
       fit: contenir ? BoxFit.contain : BoxFit.cover,
-      errorBuilder: (_, __, ___) => _essayer(chemins.sublist(1), remplacement),
-      
+      errorBuilder: (_, __, ___) =>
+          _essayer(chemins.sublist(1), remplacement, urlReseau),
     );
   }
 
@@ -70,8 +80,10 @@ class PhotoMedicament extends StatelessWidget {
     );
 
     String? base;
+    String? urlReseau;
     if (fichier != null && fichier!.isNotEmpty) {
       base = fichier!.replaceAll(RegExp(r'\.[A-Za-z0-9]+$'), '');
+      urlReseau = '${AuthService.baseUrl}/images/medicaments/$fichier';
     }
 
     return ClipRRect(
@@ -81,6 +93,7 @@ class PhotoMedicament extends StatelessWidget {
           : _essayer(
               _extensions.map((e) => 'assets/medicaments/$base.$e').toList(),
               remplacement,
+              urlReseau,
             ),
     );
   }
