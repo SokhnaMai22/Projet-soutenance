@@ -54,6 +54,8 @@ class PhotoMedicament extends StatelessWidget {
         height: hauteur,
         width: double.infinity,
         fit: contenir ? BoxFit.contain : BoxFit.cover,
+        // Navigateur : affiche la photo comme une image web normale (évite le blocage CORS)
+        webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
         errorBuilder: (_, __, ___) => remplacement,
       );
     }

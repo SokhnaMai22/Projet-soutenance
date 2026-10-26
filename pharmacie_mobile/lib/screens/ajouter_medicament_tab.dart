@@ -117,7 +117,7 @@ class _AjouterMedicamentTabState extends State<AjouterMedicamentTab> {
             _champ('Nom *', _nom),
             _champ('Description', _description, lignes: 2),
             Row(children: [
-              Expanded(child: _champ('Forme * (Comprimé, Gélule…)', _forme)),
+              Expanded(child: _champ('Forme *', _forme)),
               const SizedBox(width: 10),
               Expanded(child: _champ('Dosage * (500 mg)', _dosage)),
             ]),
@@ -130,7 +130,7 @@ class _AjouterMedicamentTabState extends State<AjouterMedicamentTab> {
                   child: _champ('Quantité en stock *', _quantite,
                       type: TextInputType.number)),
             ]),
-            _champ('Catégorie (facultatif)', _categorie),
+            _champ('Catégorie', _categorie),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Vendu sur ordonnance'),
