@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:pharmacien')->group(function () {
         Route::get('/ordonnances', [OrdonnanceController::class, 'index']);
         Route::post('/ordonnances/{ordonnance}/valider', [OrdonnanceController::class, 'valider']);
+        Route::post('/medicaments', [MedicamentController::class, 'store']);
         Route::post('/ordonnances/{ordonnance}/rejeter', [OrdonnanceController::class, 'rejeter']);
                 // Préparation des commandes
         Route::get('/pharmacien/commandes', [LivraisonController::class, 'commandesPharmacien']);

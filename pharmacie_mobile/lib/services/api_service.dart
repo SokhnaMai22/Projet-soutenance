@@ -11,15 +11,28 @@ class ApiService {
 
   static Future<List<dynamic>> _liste(String chemin) async {
     final res = await http
-        .get(Uri.parse('${AuthService.baseUrl}$chemin'), headers: AuthService.headers)
-        .timeout(const Duration(seconds: 8));
+        .get(Uri.parse('${AuthService.baseUrl}$chemin'),
+            headers: AuthService.headers)
+        .timeout(const Duration(seconds: 30));
+    if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
+    throw Exception('Erreur ${res.statusCode}');
+  }
+
+  // Appel public (sans jeton) : évite la demande préliminaire du navigateur
+  static Future<List<dynamic>> _listePublique(String chemin) async {
+    final res = await http
+        .get(Uri.parse('${AuthService.baseUrl}$chemin'),
+            headers: {'Accept': 'application/json'})
+        .timeout(const Duration(seconds: 30));
     if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
     throw Exception('Erreur ${res.statusCode}');
   }
 
   // Catalogue
-  static Future<List<dynamic>> medicaments() => _liste('/api/medicaments');
-  static Future<List<dynamic>> pharmacies() => _liste('/api/pharmacies');
+  static Future<List<dynamic>> medicaments() =>
+      _listePublique('/api/medicaments');
+  static Future<List<dynamic>> pharmacies() =>
+      _listePublique('/api/pharmacies');
 
   // Patient : ses commandes avec statut
   static Future<List<dynamic>> mesCommandes() => _liste('/api/mes-commandes');
@@ -29,7 +42,7 @@ class ApiService {
     final res = await http
         .get(Uri.parse('${AuthService.baseUrl}/api/livraisons'),
             headers: AuthService.headers)
-        .timeout(const Duration(seconds: 8));
+        .timeout(const Duration(seconds: 30));
     if (res.statusCode == 200) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     }
@@ -50,7 +63,8 @@ class ApiService {
       return 'Impossible de joindre le serveur';
     }
   }
-    // Pharmacien : commandes à préparer
+
+  // Pharmacien : commandes à préparer
   static Future<List<dynamic>> commandesPharmacien() =>
       _liste('/api/pharmacien/commandes');
   static Future<String?> marquerPrete(int id) =>

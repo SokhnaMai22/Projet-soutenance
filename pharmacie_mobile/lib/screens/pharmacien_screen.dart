@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../widgets/photos.dart';
 import 'login_screen.dart';
 import 'commandes_pharmacien_tab.dart';
+import 'ajouter_medicament_tab.dart';
 
 class PharmacienScreen extends StatefulWidget {
   const PharmacienScreen({super.key});
@@ -134,13 +135,19 @@ class _PharmacienScreenState extends State<PharmacienScreen> {
               icon: Icon(Icons.description_outlined),
               selectedIcon: Icon(Icons.description),
               label: 'Ordonnances'),
-          NavigationDestination(
+                    NavigationDestination(
               icon: Icon(Icons.inventory_2_outlined),
               selectedIcon: Icon(Icons.inventory_2),
               label: 'Commandes'),
+          NavigationDestination(
+              icon: Icon(Icons.add_box_outlined),
+              selectedIcon: Icon(Icons.add_box),
+              label: 'Médicaments'),
         ],
       ),
-      body: _onglet == 1
+            body: _onglet == 2
+          ? const SafeArea(child: AjouterMedicamentTab())
+          : _onglet == 1
           ? const SafeArea(child: CommandesPharmacienTab())
           : RefreshIndicator(
         onRefresh: _charger,
